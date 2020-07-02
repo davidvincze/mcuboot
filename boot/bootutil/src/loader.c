@@ -1987,6 +1987,10 @@ context_boot_go(struct boot_loader_state *state, struct boot_rsp *rsp)
     uint32_t i;
     int fa_id;
     int rc;
+#ifdef MCUBOOT_DIRECT_XIP_REVERT
+    const struct flash_area *fap;
+    struct boot_swap_state slot_state;
+#endif
 
     /* The array of slot sectors are defined here (as opposed to file scope) so
      * that they don't get allocated for non-boot-loader apps.  This is
@@ -2055,6 +2059,57 @@ context_boot_go(struct boot_loader_state *state, struct boot_rsp *rsp)
                 }
             }
 
+#ifdef MCUBOOT_DIRECT_XIP_REVERT
+            fa_id = flash_area_id_from_image_slot(selected_slot);
+            rc = flash_area_open(fa_id, fap);
+            assert(rc == 0);
+            rc = boot_read_swap_state(fap, &slot_state);
+            assert(rc == 0);
+
+            if (slot_state.magic != BOOT_MAGIC_GOOD ||
+                (slot_state.copy_done == BOOT_FLAG_SET &&
+                 slot_state.image_ok  != BOOT_FLAG_SET)) {
+                /*
+                 * A reboot happened without the image being confirmed at
+                 * runtime or its trailer is corrupted/invalid. Erase the image
+                 * to prevent it from being selected again on the next reboot.
+                 */
+                BOOT_LOG_DBG("Erasing faulty image in the %s slot.",
+                             (selected_slot == BOOT_PRIMARY_SLOT) ?
+                             "primary" : "secondary");
+                rc = flash_area_erase(fap, 0, fap->fa_size);
+                assert(rc == 0);
+                flash_area_close(fap);
+
+                slot_usage[selected_slot] = 0;
+                selected_image_header = NULL;
+                continue;
+            } else {
+                if (slot_state.copy_done != BOOT_FLAG_SET) {
+                    if (slot_state.copy_done == BOOT_FLAG_BAD) {
+                        BOOT_LOG_DBG("The copy_done flag had an unexpected "
+                                     "value. Its value was neither 'set' nor "
+                                     "'unset', but 'bad'.");
+                    }
+                    /*
+                     * Set the copy_done flag, indicating that the image has
+                     * been selected to boot. It can be set in advance, before
+                     * even validating the image, because in case the validation
+                     * fails, the entire image slot will be erased (including
+                     * the trailer).
+                     */
+                    rc = boot_write_copy_done(fap);
+                    if (rc != 0) {
+                        BOOT_LOG_WRN("Failed to set copy_done flag of the "
+                                     "image in the %s slot.",
+                                     (selected_slot == BOOT_PRIMARY_SLOT) ?
+                                     "primary" : "secondary");
+                    }
+                }
+                flash_area_close(fap);
+            }
+#endif /* MCUBOOT_DIRECT_XIP_REVERT */
+
             rc = boot_validate_slot(state, selected_slot, NULL);
             if (rc == 0) {
                 /* If a valid image is found then there is no reason to check
@@ -2067,6 +2122,7 @@ context_boot_go(struct boot_loader_state *state, struct boot_rsp *rsp)
              * and start over.
              */
             slot_usage[selected_slot] = 0;
+            selected_image_header = NULL;
         }
 
         if (rc || (selected_image_header == NULL)) {
@@ -2079,13 +2135,24 @@ context_boot_go(struct boot_loader_state *state, struct boot_rsp *rsp)
         /* Update the stored security counter with the newer (active) image's
          * security counter value.
          */
-        rc = boot_update_security_counter(0, selected_slot,
-                                          selected_image_header);
-        if (rc != 0) {
-            BOOT_LOG_ERR("Security counter update failed after image "
-                         "validation.");
-            goto out;
+#ifdef MCUBOOT_DIRECT_XIP_REVERT
+        /* When the 'revert' mechanism is enabled in direct-xip mode, the
+         * security counter can be increased only after reboot, if the image
+         * has been confirmed at runtime (the image_ok flag has been set).
+         * This way a 'revert' can be performed when it's necessary.
+         */
+        if (slot_state.image_ok == BOOT_FLAG_SET) {
+#endif
+            rc = boot_update_security_counter(0, selected_slot,
+                                              selected_image_header);
+            if (rc != 0) {
+                BOOT_LOG_ERR("Security counter update failed after image "
+                             "validation.");
+                goto out;
+            }
+#ifdef MCUBOOT_DIRECT_XIP_REVERT
         }
+#endif
 #endif /* MCUBOOT_HW_ROLLBACK_PROT */
 
 #ifdef MCUBOOT_MEASURED_BOOT

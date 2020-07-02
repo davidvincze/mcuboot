@@ -199,9 +199,18 @@ config BOOT_DIRECT_XIP
 	  mode results in a simpler code path and smaller code size.
 
 endchoice
-endif
 
-if !SINGLE_IMAGE_DFU
+config BOOT_DIRECT_XIP_REVERT
+	bool "Enable the revert mechanism in direct-xip mode"
+	default n
+	help
+	  If y, enables the revert mechanism in direct-xip similar to the one in
+	  swap mode. It requires the trailer magic to be added to the signed image.
+	  When a reboot happens without the image being confirmed at runtime, the
+	  bootloader considers the image faulty and will attempt to boot the
+	  previous image. The images can also be made permanent (marked as confirmed
+	  in advance) just like in swap mode.
+
 config BOOT_BOOTSTRAP
 	bool "Bootstrap erased the primary slot from the secondary slot"
 	default n
