@@ -1,6 +1,6 @@
 #!/bin/bash -x
 
-# Copyright (c) 2020-2024 Arm Limited
+# Copyright (c) 2020-2025 Arm Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@
 set -e
 
 source $(dirname "$0")/fih-tests_version.sh
+
+FIH_IMAGE_REPO=ghcr.io/davidvincze/mcuboot-fih-test
 
 # Note that we are pulling from a github mirror of these repos, not direct upstream.  If the sha
 # checked out below changes, the mirrors might need to be updated.
@@ -54,7 +56,7 @@ if [[ $GITHUB_ACTIONS == true ]]; then
 fi
 
 if test -z "$FIH_LEVEL"; then
-    docker run --rm -v $(pwd):/root/work/tfm:rw,z mcuboot/fih-test:$FIH_IMAGE_VERSION /bin/sh -c '/root/work/tfm/mcuboot/ci/fih_test_docker/execute_test.sh $0 $1 $2' $SKIP_SIZE $BUILD_TYPE $DAMAGE_TYPE
+    docker run --rm -v $(pwd):/root/work/tfm:rw,z $FIH_IMAGE_REPO:$FIH_IMAGE_VERSION /bin/sh -c '/root/work/tfm/mcuboot/ci/fih_test_docker/execute_test.sh $0 $1 $2' $SKIP_SIZE $BUILD_TYPE $DAMAGE_TYPE
 else
-    docker run --rm -v $(pwd):/root/work/tfm:rw,z mcuboot/fih-test:$FIH_IMAGE_VERSION /bin/sh -c '/root/work/tfm/mcuboot/ci/fih_test_docker/execute_test.sh $0 $1 $2 $3' $SKIP_SIZE $BUILD_TYPE $DAMAGE_TYPE $FIH_LEVEL
+    docker run --rm -v $(pwd):/root/work/tfm:rw,z $FIH_IMAGE_REPO:$FIH_IMAGE_VERSION /bin/sh -c '/root/work/tfm/mcuboot/ci/fih_test_docker/execute_test.sh $0 $1 $2 $3' $SKIP_SIZE $BUILD_TYPE $DAMAGE_TYPE $FIH_LEVEL
 fi

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Copyright (c) 2020 Arm Limited
+# Copyright (c) 2020-2025 Arm Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,5 +25,5 @@ cleanup_exit()
 
 export LANG=C
 
-image=mcuboot/fih-test
+image=ghcr.io/davidvincze/mcuboot-fih-test
 docker build --pull --tag=$image .
